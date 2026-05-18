@@ -1,0 +1,2 @@
+release/BiliCopilot[[:space:]]Setup[[:space:]]3.0.0.exe filter=lfs diff=lfs merge=lfs -text
+release/win-unpacked/BiliCopilot.exe filter=lfs diff=lfs merge=lfs -text

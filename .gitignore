@@ -1,0 +1,13 @@
+node_modules/
+# IDE 配置（JetBrains 系列）
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+
+# 其他
+.DS_Store

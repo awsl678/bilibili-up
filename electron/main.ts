@@ -175,28 +175,75 @@ ipcMain.handle('is-logged-in', async () => {
 
 // ---------- 通用 HTTP ----------
 ipcMain.handle('http-request', async (_event, args: { url: string; method?: string; headers?: Record<string, string>; useAuth?: boolean }) => {
-  if (!args.useAuth) {
-    try {
-      const res = await axios({ url: args.url, method: args.method || 'GET', headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', Referer: 'https://www.bilibili.com/', ...args.headers }, timeout: 15000 })
-      return { data: res.data, status: res.status }
-    } catch (error: any) { return { error: error.message, status: error.response?.status || 0 } }
-  }
+  // 匿名请求：继续使用 axios
+  if (args.useAuth) {
+  const cookies = await session.defaultSession.cookies.get({ url: 'https://bilibili.com' })
+  const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+  console.log('[http-auth] 携带 Cookie 总数:', cookies.length)
 
   return new Promise((resolve) => {
     const request = net.request({ method: args.method || 'GET', url: args.url })
-    request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0')
     request.setHeader('Referer', 'https://www.bilibili.com/')
-    if (args.headers) for (const [k, v] of Object.entries(args.headers)) request.setHeader(k, v)
+    request.setHeader('Origin', 'https://www.bilibili.com')
+    request.setHeader('Accept', 'application/json, text/plain, */*')
+    request.setHeader('Accept-Language', 'zh-CN,zh;q=0.9')
+    request.setHeader('sec-ch-ua', '"Chromium";v="148", "Microsoft Edge";v="148", "Not/A)Brand";v="99"')
+    request.setHeader('sec-ch-ua-mobile', '?0')
+    request.setHeader('sec-ch-ua-platform', '"Windows"')
+    if (cookieStr) {
+      request.setHeader('Cookie', cookieStr)
+    }
+    if (args.headers) {
+      for (const [k, v] of Object.entries(args.headers)) {
+        request.setHeader(k, v)
+      }
+    }
 
     request.on('response', (response) => {
       let data = ''
       response.on('data', chunk => { data += chunk })
       response.on('end', () => {
-        try { resolve({ data: JSON.parse(data), status: response.statusCode }) }
-        catch { resolve({ data, status: response.statusCode }) }
+        try {
+          resolve({ data: JSON.parse(data), status: response.statusCode })
+        } catch {
+          resolve({ data, status: response.statusCode })
+        }
       })
     })
     request.on('error', (error) => resolve({ error: error.message, status: 0 }))
+    request.end()
+  })
+}
+
+  // 认证请求：用 net.request 自动携带 session cookies
+  return new Promise((resolve) => {
+    const request = net.request({
+      method: args.method || 'GET',
+      url: args.url,
+    })
+    request.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    request.setHeader('Referer', 'https://www.bilibili.com/')
+    if (args.headers) {
+      for (const [k, v] of Object.entries(args.headers)) {
+        request.setHeader(k, v)
+      }
+    }
+
+    request.on('response', (response) => {
+      let data = ''
+      response.on('data', chunk => { data += chunk })
+      response.on('end', () => {
+        try {
+          resolve({ data: JSON.parse(data), status: response.statusCode })
+        } catch {
+          resolve({ data, status: response.statusCode })
+        }
+      })
+    })
+    request.on('error', (error) => {
+      resolve({ error: error.message, status: 0 })
+    })
     request.end()
   })
 })

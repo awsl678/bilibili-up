@@ -1007,17 +1007,17 @@ body {
 .up-avatar-large {       /* up头像 */
   width: 60px;
   height: 60px;
-  margin-left: 25px;
+  margin-left: 20px;
   border-radius: 50%;
   object-fit: cover;
   background: #eee;
 }
 .up-name-large {
-  margin-left: 0px;
+  margin-left: 18px;
   font-size: 12px;
   font-weight: 600;
   color: #333;
-  max-width: 80px;
+  max-width: 60px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1025,16 +1025,17 @@ body {
 }
 /* 卡片右侧信息列 */
 .card-top-right {
+  margin-top: 0px;
   cursor: default;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 10px;                   /* 行间距，调大则三行更松散 */
+  gap: 28px;                   /* 行间距，调大则三行更松散 */
   flex: 1;
-  margin-left: 22px;            /* 与头像的距离，调大则更向右 */
+  margin-left: 45px;            /* 与头像的距离，调大则更向右 */
   font-size: 14px;
   color: #333;
-  font-weight: 600;            /* 加粗，与 UP 主名字保持一致 */
+  font-weight: 700;            /* 加粗，与 UP 主名字保持一致 */
   padding-right: 28px;         /* 给爱心留出空间 */
   padding-left: 20px;          /* 左侧内边距，使数据向右推，填充右侧空白 */
 }

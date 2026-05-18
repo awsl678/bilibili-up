@@ -22,12 +22,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   }, [video.owner.mid])
 
   useEffect(() => {
-    const mid = video.owner?.mid
-    if (!mid) return
-    getUpInfo(mid).then(info => {
-      if (info) setUpInfo(info)
-    })
-  }, [video.owner?.mid])
+  const mid = video.owner?.mid
+  if (!mid) return
+  getUpInfo(mid).then(info => { if (info) setUpInfo(info) })
+}, [video.owner?.mid])
 
   const duration = (() => {
     const mins = Math.floor(parseInt(video.duration) / 60)
@@ -75,9 +73,6 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         <div className="card-top-right">
           <span style={{ fontSize: 14, color: '#333' }}>
             粉丝: {upInfo ? formatCount(upInfo.follower) : '...'}
-          </span>
-          <span style={{ fontSize: 14, color: '#333' }}>
-            视频: {upInfo ? (upInfo.video_count ?? '...') : '...'}
           </span>
           <span style={{ fontSize: 14, color: '#333' }}>
             更新: {pubDate}

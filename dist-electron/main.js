@@ -12094,14 +12094,7 @@ var _eval = EvalError;
 var range = RangeError;
 var ref = ReferenceError;
 var syntax = SyntaxError;
-var type;
-var hasRequiredType;
-function requireType() {
-  if (hasRequiredType) return type;
-  hasRequiredType = 1;
-  type = TypeError;
-  return type;
-}
+var type = TypeError;
 var uri = URIError;
 var abs$1 = Math.abs;
 var floor$1 = Math.floor;
@@ -12347,7 +12340,7 @@ function requireCallBindApplyHelpers() {
   if (hasRequiredCallBindApplyHelpers) return callBindApplyHelpers;
   hasRequiredCallBindApplyHelpers = 1;
   var bind3 = functionBind;
-  var $TypeError2 = requireType();
+  var $TypeError2 = type;
   var $call2 = requireFunctionCall();
   var $actualApply = requireActualApply();
   callBindApplyHelpers = function callBindBasic(args) {
@@ -12420,7 +12413,7 @@ var $EvalError = _eval;
 var $RangeError = range;
 var $ReferenceError = ref;
 var $SyntaxError = syntax;
-var $TypeError$1 = requireType();
+var $TypeError$1 = type;
 var $URIError = uri;
 var abs = abs$1;
 var floor = floor$1;
@@ -12751,7 +12744,7 @@ var GetIntrinsic2 = getIntrinsic;
 var $defineProperty = GetIntrinsic2("%Object.defineProperty%", true);
 var hasToStringTag = requireShams()();
 var hasOwn$1 = hasown;
-var $TypeError = requireType();
+var $TypeError = type;
 var toStringTag = hasToStringTag ? Symbol.toStringTag : null;
 var esSetTostringtag = function setToStringTag(object, value) {
   var overrideIfSet = arguments.length > 2 && !!arguments[2] && arguments[2].force;
@@ -17948,20 +17941,57 @@ electron.ipcMain.handle("is-logged-in", async () => {
   return cookies2.length > 0;
 });
 electron.ipcMain.handle("http-request", async (_event, args) => {
-  var _a;
-  if (!args.useAuth) {
-    try {
-      const res = await axios({ url: args.url, method: args.method || "GET", headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", Referer: "https://www.bilibili.com/", ...args.headers }, timeout: 15e3 });
-      return { data: res.data, status: res.status };
-    } catch (error) {
-      return { error: error.message, status: ((_a = error.response) == null ? void 0 : _a.status) || 0 };
-    }
+  if (args.useAuth) {
+    const cookies2 = await electron.session.defaultSession.cookies.get({ url: "https://bilibili.com" });
+    const cookieStr = cookies2.map((c) => `${c.name}=${c.value}`).join("; ");
+    console.log("[http-auth] 携带 Cookie 总数:", cookies2.length);
+    return new Promise((resolve) => {
+      const request = electron.net.request({ method: args.method || "GET", url: args.url });
+      request.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0");
+      request.setHeader("Referer", "https://www.bilibili.com/");
+      request.setHeader("Origin", "https://www.bilibili.com");
+      request.setHeader("Accept", "application/json, text/plain, */*");
+      request.setHeader("Accept-Language", "zh-CN,zh;q=0.9");
+      request.setHeader("sec-ch-ua", '"Chromium";v="148", "Microsoft Edge";v="148", "Not/A)Brand";v="99"');
+      request.setHeader("sec-ch-ua-mobile", "?0");
+      request.setHeader("sec-ch-ua-platform", '"Windows"');
+      if (cookieStr) {
+        request.setHeader("Cookie", cookieStr);
+      }
+      if (args.headers) {
+        for (const [k, v] of Object.entries(args.headers)) {
+          request.setHeader(k, v);
+        }
+      }
+      request.on("response", (response) => {
+        let data = "";
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => {
+          try {
+            resolve({ data: JSON.parse(data), status: response.statusCode });
+          } catch {
+            resolve({ data, status: response.statusCode });
+          }
+        });
+      });
+      request.on("error", (error) => resolve({ error: error.message, status: 0 }));
+      request.end();
+    });
   }
   return new Promise((resolve) => {
-    const request = electron.net.request({ method: args.method || "GET", url: args.url });
+    const request = electron.net.request({
+      method: args.method || "GET",
+      url: args.url
+    });
     request.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
     request.setHeader("Referer", "https://www.bilibili.com/");
-    if (args.headers) for (const [k, v] of Object.entries(args.headers)) request.setHeader(k, v);
+    if (args.headers) {
+      for (const [k, v] of Object.entries(args.headers)) {
+        request.setHeader(k, v);
+      }
+    }
     request.on("response", (response) => {
       let data = "";
       response.on("data", (chunk) => {
@@ -17975,7 +18005,9 @@ electron.ipcMain.handle("http-request", async (_event, args) => {
         }
       });
     });
-    request.on("error", (error) => resolve({ error: error.message, status: 0 }));
+    request.on("error", (error) => {
+      resolve({ error: error.message, status: 0 });
+    });
     request.end();
   });
 });

@@ -14,9 +14,11 @@ export interface IElectronAPI {
   dbMarkUp: (upData: { mid: number; name: string; face?: string }) => Promise<any>
   dbUnmarkUp: (mid: number) => Promise<any>
   dbGetMarkedUps: () => Promise<any[]>
-  dbFetchUpDynamics: (mid: number) => Promise<any>
+  dbFetchUpDynamics: (mid: number) => Promise<{ success: boolean; count: number }>
   dbGetUpDynamics: (mid: number, limit?: number) => Promise<any[]>
-  wbiSignParams: (params: Record<string, any>) => ipcRenderer.invoke('wbi-sign-params', params),
-  dbAddDynamics: (dynamics: any[]) => ipcRenderer.invoke('db-add-dynamics', dynamics),
+  fetchAllMarkedDynamics: () => Promise<{ success: boolean; total: number; errors: string[] }>
+  getMarkedUpsWithStats: () => Promise<any[]>
+  getUpVideos: (mid: number) => Promise<any[]>
+  getDynamicsByDate: (mids: number[], startTs: number, endTs: number) => Promise<any[]>
 }
 declare global { interface Window { electronAPI?: IElectronAPI } }

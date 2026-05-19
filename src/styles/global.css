@@ -1149,3 +1149,45 @@ body {
 .user-card:hover {
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
+
+/* ---------- 收藏页 ---------- */
+.dyn-card {
+  transition: background 0.15s;
+}
+.dyn-card:hover {
+  background: #fafafa;
+}
+
+/* 收藏页左侧 UP 主列表 hover */
+.marked-up-item {
+  transition: background 0.15s, border-color 0.15s;
+}
+.marked-up-item:hover {
+  background: #fafafa;
+}
+
+/* 播放量变化动画 */
+.play-delta-positive {
+  color: #52c41a;
+  font-weight: 600;
+}
+.play-delta-negative {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+/* 收藏页滚动条 */
+.marked-left-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.marked-left-panel::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 2px;
+}
+.marked-right-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.marked-right-panel::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 3px;
+}

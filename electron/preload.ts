@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetMarkedUps: () => ipcRenderer.invoke('db-get-marked-ups'),
   dbFetchUpDynamics: (mid: number) => ipcRenderer.invoke('fetch-up-dynamics', mid),
   dbGetUpDynamics: (mid: number, limit?: number) => ipcRenderer.invoke('db-get-up-dynamics', mid, limit),
-  wbiSignParams: (params: Record<string, any>) => ipcRenderer.invoke('wbi-sign-params', params),
-  dbAddDynamics: (dynamics: any[]) => ipcRenderer.invoke('db-add-dynamics', dynamics),
+  // 收藏页重构新增
+  fetchAllMarkedDynamics: () => ipcRenderer.invoke('fetch-all-marked-dynamics'),
+  getMarkedUpsWithStats: () => ipcRenderer.invoke('get-marked-ups-with-stats'),
+  getUpVideos: (mid: number) => ipcRenderer.invoke('get-up-videos', mid),
+  getDynamicsByDate: (mids: number[], startTs: number, endTs: number) =>
+    ipcRenderer.invoke('get-dynamics-by-date', mids, startTs, endTs),
 })

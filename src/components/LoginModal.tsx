@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import QRCode from 'qrcode-generator'
 
 interface LoginModalProps {
@@ -7,10 +7,31 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn }) => {
-  const qrContainerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState('loading')
+  const [qrHtml, setQrHtml] = useState('')
   const polling = useRef(false)
   const timerRef = useRef<number | null>(null)
+
+  const initQr = useCallback(async () => {
+    setStatus('loading')
+    setQrHtml('')
+    try {
+      const res = await window.electronAPI!.loginGetQr()
+      if (res.success && res.qrUrl) {
+        const qr = QRCode(0, 'L')
+        qr.addData(res.qrUrl)
+        qr.make()
+        setQrHtml(qr.createTableTag(6))
+        setStatus('waiting')
+        startPolling()
+      } else {
+        setStatus('error')
+      }
+    } catch (err) {
+      console.error('QR init error:', err)
+      setStatus('error')
+    }
+  }, [])
 
   useEffect(() => {
     initQr()
@@ -18,29 +39,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn }) => {
       polling.current = false
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [])
-
-  const initQr = async () => {
-    setStatus('loading')
-    try {
-      const res = await window.electronAPI!.loginGetQr()
-      if (res.success && res.qrUrl) {
-        // 使用 qrcode-generator 生成表格
-        const qr = QRCode(0, 'L')
-        qr.addData(res.qrUrl)
-        qr.make()
-        if (qrContainerRef.current) {
-          qrContainerRef.current.innerHTML = qr.createTableTag(6)
-        }
-        setStatus('waiting')
-        startPolling()
-      } else {
-        setStatus('error')
-      }
-    } catch {
-      setStatus('error')
-    }
-  }
+  }, [initQr])
 
   const startPolling = () => {
     polling.current = true
@@ -76,10 +75,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn }) => {
     if (timerRef.current) clearTimeout(timerRef.current)
     onClose()
   }
-
-  // 下载 qrcode-generator 的包（如果没有安装）
-  // pnpm add qrcode-generator
-  // @types/qrcode-generator 可选
 
   return (
     <div
@@ -117,7 +112,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn }) => {
           )}
           {(status === 'waiting' || status === 'scanned') && (
             <div>
-              <div ref={qrContainerRef} style={{ display: 'inline-block', marginBottom: 10 }}></div>
+              <div
+                dangerouslySetInnerHTML={{ __html: qrHtml }}
+                style={{ display: 'inline-block', marginBottom: 10 }}
+              />
               <p style={{ color: '#333' }}>
                 {status === 'scanned' ? '已扫描，请在手机确认' : '请使用 Bilibili App 扫码登录'}
               </p>

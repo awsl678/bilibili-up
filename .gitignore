@@ -11,3 +11,4 @@ out/
 
 # 其他
 .DS_Store
+release/

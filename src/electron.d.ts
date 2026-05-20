@@ -21,5 +21,7 @@ export interface IElectronAPI {
   getUpVideos: (mid: number) => Promise<any[]>
   getDynamicsByDate: (mids: number[], startTs: number, endTs: number) => Promise<any[]>
   getUpInfoViaPage: (mid: number) => Promise<any>
+  fetchViaBrowser: (baseUrl: string, params: Record<string, any>, referer: string) => Promise<any>
+  fetchSignedApi: (baseUrl: string, params: Record<string, any>, referer: string) => Promise<any>
 }
 declare global { interface Window { electronAPI?: IElectronAPI } }

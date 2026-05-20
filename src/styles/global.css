@@ -970,138 +970,89 @@ body {
   padding: 0 4px;
 }
 
-/* ========== 视频卡片（整体缩小） ========== */
+/* ========== 视频卡片（紧凑横排） ========== */
 .video-card-new {
   background: white;
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   transition: transform 0.15s, box-shadow 0.15s;
-  cursor: pointer;
+  cursor: default;
   width: 100%;
-  display: flex;
-  flex-direction: column;
 }
 .video-card-new:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
 }
 
-/* 上半部分：UP主信息 */
 .card-top {
-  position: relative; /* 确保爱心绝对定位在 card-top 内 */
+  position: relative;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0f0f0;
-  min-height: 70px;
+  align-items: center;
+  padding: 14px 14px;
+  gap: 14px;
+  min-height: 80px;
 }
 .card-top-left {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 60px;
+  flex-shrink: 0;
 }
-.up-avatar-large {       /* up头像 */
+.up-avatar-large {
   width: 60px;
   height: 60px;
-  margin-left: 20px;
   border-radius: 50%;
   object-fit: cover;
   background: #eee;
+  cursor: pointer;
 }
-.up-name-large {
-  margin-left: 18px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #333;
-  max-width: 60px;
+.up-avatar-large:hover { opacity: 0.85; }
+
+.card-top-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-right: 2px;
+}
+.card-up-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: center;
 }
-/* 卡片右侧信息列 */
-.card-top-right {
-  margin-top: 0px;
+.card-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: #000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: default;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 28px;                   /* 行间距，调大则三行更松散 */
-  flex: 1;
-  margin-left: 45px;            /* 与头像的距离，调大则更向右 */
-  font-size: 14px;
-  color: #333;
-  font-weight: 700;            /* 加粗，与 UP 主名字保持一致 */
-  padding-right: 28px;         /* 给爱心留出空间 */
-  padding-left: 20px;          /* 左侧内边距，使数据向右推，填充右侧空白 */
 }
-.right-stats {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  line-height: 1.3;
-}
-
-/* 下半部分：封面与标题 */
-.card-bottom {
-  display: flex;
-  padding: 8px 12px;
-  gap: 8px;
-}
-.card-cover {
-  width: 120px;
-  height: 68px;
-  border-radius: 6px;
-  background-size: cover;
-  background-position: center;
-  position: relative;
+.card-stat-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #ccc;
   flex-shrink: 0;
-  background-color: #f0f0f0;
 }
-.card-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.video-title {
-  font-size: 12px;
+.card-title-link {
+  font-size: 13px;
   font-weight: 500;
-  line-height: 1.3em;
-  max-height: 2.6em;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #333;
+  line-height: 1.4;
+  min-height: 2.8em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: #222;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
-.video-meta {
-  font-size: 11px;
-  color: #999;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.video-meta .dot {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: #ccc;
-}
-.video-duration {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  background: rgba(0,0,0,0.7);
-  color: white;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 10px;
+.card-title-link:hover {
+  color: #fb7299;
 }
 #content-area {
   -webkit-app-region: no-drag;   /* 确保滚动区域不受拖拽影响 */

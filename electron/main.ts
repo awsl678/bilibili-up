@@ -2,7 +2,6 @@ import { app, BrowserWindow, shell, ipcMain, session, net } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import axios from 'axios'
-import https from 'https'
 import md5 from 'blueimp-md5'
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
 const isDev = !app.isPackaged
@@ -471,77 +470,68 @@ function parseDynamicItem(item: any, mid: number) {
   }
 }
 
-// ---------- 动态拉取 ----------
+// ---------- 动态拉取（隐藏浏览器方案，模拟真实页面的 API 调用） ----------
 async function fetchAndStoreDynamics(mid: number): Promise<{ success: boolean; count: number; message?: string }> {
-  const cookies = await session.defaultSession.cookies.get({ url: 'https://bilibili.com' })
-  const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
-
   const url = `https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=${mid}&platform=web&web_location=333.1387`
-  const headers: Record<string, string> = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'Referer': 'https://space.bilibili.com/',
-    'Origin': 'https://space.bilibili.com',
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'zh-CN,zh;q=0.9',
-  }
-  if (cookieStr) headers['Cookie'] = cookieStr
 
-  return new Promise((resolve) => {
-    const req = https.get(url, { headers }, (res) => {
-      let data = ''
-      res.on('data', chunk => data += chunk)
-      res.on('end', () => {
+  try {
+    await acquireBrowserLock()
+    const win = await ensureBrowserReady()
+
+    const parsed = await win.webContents.executeJavaScript(`
+      (async () => {
         try {
-          const parsed = JSON.parse(data)
-          if (parsed.code !== 0) {
-            resolve({ success: false, count: 0, message: parsed.message || `code=${parsed.code}` })
-            return
-          }
+          const res = await fetch(${JSON.stringify(url)}, {
+            credentials: 'include',
+            headers: { Referer: 'https://space.bilibili.com/${mid}' }
+          })
+          return await res.json()
+        } catch(e) { return { code: -1, message: e.message } }
+      })()
+    `)
+    releaseBrowserLock()
 
-          const items: any[] = parsed.data?.items || []
-          const dynamics = items.map(item => parseDynamicItem(item, mid)).filter(Boolean)
+    if (parsed.code !== 0) {
+      return { success: false, count: 0, message: parsed.message || `code=${parsed.code}` }
+    }
 
-          if (dynamics.length === 0) {
-            resolve({ success: true, count: 0 })
-            return
-          }
+    const items: any[] = parsed.data?.items || []
+    const dynamics = items.map(item => parseDynamicItem(item, mid)).filter(Boolean)
 
-          const insertDyn = db.prepare(
-            'INSERT OR IGNORE INTO up_dynamics (mid, dynamic_id, type, content, timestamp, pub_action) VALUES (?, ?, ?, ?, ?, ?)'
-          )
-          const insertVid = db.prepare(
-            'INSERT OR IGNORE INTO up_videos (mid, bvid, title, cover, play_count, danmaku_count, duration_text, pub_ts, dynamic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          )
+    if (dynamics.length === 0) {
+      return { success: true, count: 0 }
+    }
 
-          let maxTs = 0
-          for (const d of dynamics) {
-            insertDyn.run([d.mid, d.dynamic_id, d.type, d.content, d.timestamp, d.pub_action])
-            if (d.timestamp > maxTs) maxTs = d.timestamp
+    const insertDyn = db.prepare(
+      'INSERT OR IGNORE INTO up_dynamics (mid, dynamic_id, type, content, timestamp, pub_action) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    const insertVid = db.prepare(
+      'INSERT OR IGNORE INTO up_videos (mid, bvid, title, cover, play_count, danmaku_count, duration_text, pub_ts, dynamic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )
 
-            // 视频类型同步写入 up_videos
-            if (d.type === 'archive') {
-              const c = JSON.parse(d.content)
-              if (c.bvid) {
-                insertVid.run([d.mid, c.bvid, c.title, c.cover, c.play, c.danmaku, c.duration, d.timestamp, d.dynamic_id])
-              }
-            }
-          }
-          insertDyn.free()
-          insertVid.free()
+    let maxTs = 0
+    for (const d of dynamics) {
+      insertDyn.run([d.mid, d.dynamic_id, d.type, d.content, d.timestamp, d.pub_action])
+      if (d.timestamp > maxTs) maxTs = d.timestamp
 
-          // 更新 UP 主的最后更新时间和动态数
-          db.run('UPDATE up_master SET last_update_time = MAX(last_update_time, ?), dynamics_count = (SELECT COUNT(*) FROM up_dynamics WHERE mid = ?) WHERE mid = ?', [maxTs, mid, mid])
-          ;(db as any).saveToFile()
-
-          resolve({ success: true, count: dynamics.length })
-        } catch (err: any) {
-          resolve({ success: false, count: 0, message: err.message })
+      if (d.type === 'archive') {
+        const c = JSON.parse(d.content)
+        if (c.bvid) {
+          insertVid.run([d.mid, c.bvid, c.title, c.cover, c.play, c.danmaku, c.duration, d.timestamp, d.dynamic_id])
         }
-      })
-    })
-    req.on('error', (err) => resolve({ success: false, count: 0, message: err.message }))
-    req.end()
-  })
+      }
+    }
+    insertDyn.free()
+    insertVid.free()
+
+    db.run('UPDATE up_master SET last_update_time = MAX(last_update_time, ?), dynamics_count = (SELECT COUNT(*) FROM up_dynamics WHERE mid = ?) WHERE mid = ?', [maxTs, mid, mid])
+    ;(db as any).saveToFile()
+
+    return { success: true, count: dynamics.length }
+  } catch (err: any) {
+    releaseBrowserLock()
+    return { success: false, count: 0, message: err.message }
+  }
 }
 
 ipcMain.handle('fetch-up-dynamics', async (_event, mid: number) => {
@@ -729,6 +719,57 @@ ipcMain.handle('get-up-info-via-page', async (_event, mid: number) => {
     return { code: -1, message: e.message }
   } finally {
     releaseBrowserLock()
+  }
+})
+
+// 通用浏览器 fetch（签名 + 浏览器上下文，用于替代直接 API 调用）
+ipcMain.handle('fetch-via-browser', async (_event, baseUrl: string, params: Record<string, any>, referer: string) => {
+  await acquireBrowserLock()
+  try {
+    const win = await ensureBrowserReady()
+    const signedUrl = await signWbiUrl(baseUrl, params)
+    const result = await win.webContents.executeJavaScript(`
+      (async () => {
+        try {
+          const res = await fetch(${JSON.stringify(signedUrl)}, {
+            credentials: 'include',
+            headers: { Referer: ${JSON.stringify(referer)} }
+          })
+          return await res.json()
+        } catch(e) { return { code: -1, message: e.message } }
+      })()
+    `)
+    return result
+  } catch(e: any) {
+    return { code: -1, message: e.message }
+  } finally {
+    releaseBrowserLock()
+  }
+})
+
+// 签名 + net.request（不回浏览器，适合无风控的公开 API）
+ipcMain.handle('fetch-signed-api', async (_event, baseUrl: string, params: Record<string, any>, referer: string) => {
+  try {
+    const signedUrl = await signWbiUrl(baseUrl, params)
+    return new Promise((resolve) => {
+      const req = net.request({ method: 'GET', url: signedUrl })
+      req.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+      req.setHeader('Referer', referer)
+      req.setHeader('Accept', 'application/json, text/plain, */*')
+      req.setHeader('Accept-Language', 'zh-CN,zh;q=0.9')
+      req.on('response', (res) => {
+        let body = ''
+        res.on('data', chunk => body += chunk)
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)) }
+          catch { resolve({ code: -1, message: 'parse error', raw: body.slice(0, 200) }) }
+        })
+      })
+      req.on('error', (err) => resolve({ code: -1, message: err.message }))
+      req.end()
+    })
+  } catch(e: any) {
+    return { code: -1, message: e.message }
   }
 })
 

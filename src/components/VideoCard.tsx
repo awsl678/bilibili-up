@@ -27,12 +27,6 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   getUpInfo(mid).then(info => { if (info) setUpInfo(info) })
 }, [video.owner?.mid])
 
-  const duration = (() => {
-    const mins = Math.floor(parseInt(video.duration) / 60)
-    const secs = parseInt(video.duration) % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  })()
-
   const pubDate = video.pubdate
     ? new Date(video.pubdate * 1000).toLocaleDateString()
     : '未知'
@@ -64,21 +58,33 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
               e.stopPropagation()
               openTab(`https://space.bilibili.com/${video.owner.mid}`)
             }}
-            style={{ cursor: 'pointer' }}
           />
-          <span className="up-name-large">
-            {video.owner?.name || '未知UP主'}
-          </span>
         </div>
         <div className="card-top-right">
-          <span style={{ fontSize: 14, color: '#333' }}>
-            粉丝: {upInfo ? formatCount(upInfo.follower) : '...'}
+          <span className="card-up-name">
+            {video.owner?.name || '未知UP主'}
           </span>
-          <span style={{ fontSize: 14, color: '#333' }}>
-            更新: {pubDate}
+          <span className="card-stat">
+            粉丝 {upInfo ? formatCount(upInfo.follower) : '...'}
+            <span className="card-stat-dot"></span>
+            {pubDate}
+          </span>
+          <span
+            className="card-title-link"
+            onClick={(e) => {
+              e.stopPropagation()
+              openTab(`https://www.bilibili.com/video/${video.bvid}`)
+            }}
+            title={video.title}
+          >
+            {video.title}
+          </span>
+          <span className="card-stat">
+            ▶ {formatCount(video.stat?.view)}
+            <span className="card-stat-dot"></span>
+            弹幕 {formatCount(video.stat?.danmaku)}
           </span>
         </div>
-        {/* 收藏爱心按钮 */}
         <button className="favorite-btn" onClick={handleMark} title={isMarked ? '取消收藏' : '收藏此UP主'}>
           {isMarked ? (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="#fb7299">
@@ -90,24 +96,6 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
             </svg>
           )}
         </button>
-      </div>
-      <div className="card-bottom" style={{ cursor: 'pointer' }} onClick={() => openTab(`https://www.bilibili.com/video/${video.bvid}`)}>
-        <div
-          className="card-cover"
-          style={{ backgroundImage: `url(${video.pic})` }}
-        >
-          <span className="video-duration">{duration}</span>
-        </div>
-        <div className="card-info">
-          <div className="video-title">
-            {video.title}
-          </div>
-          <div className="video-meta">
-            <span>▶ {formatCount(video.stat?.view)}</span>
-            <span className="dot"></span>
-            <span>弹幕 {formatCount(video.stat?.danmaku)}</span>
-          </div>
-        </div>
       </div>
     </div>
   )

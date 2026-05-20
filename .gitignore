@@ -1,14 +1,16 @@
 node_modules/
-# IDE 配置（JetBrains 系列）
+dist/
+dist-electron/
+release/
+
+# IDE
 .idea/
+.vscode/
 *.iml
 *.iws
 *.ipr
 out/
 
-# VS Code
-.vscode/
-
-# 其他
+# OS
 .DS_Store
-release/
+Thumbs.db

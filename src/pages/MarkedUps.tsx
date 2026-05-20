@@ -65,19 +65,14 @@ const DATE_FILTERS = [
   }},
 ]
 
-const MarkedUps: React.FC = () => {
+const MarkedUps: React.FC<{ isLoggedIn: boolean }> = ({ isLoggedIn }) => {
   const [ups, setUps] = useState<UpWithStat[]>([])
   const [dynamics, setDynamics] = useState<any[]>([])
   const [selectedMid, setSelectedMid] = useState<number | null>(null)
   const [dateFilter, setDateFilter] = useState(0)
   const [sortAsc, setSortAsc] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [showVideos, setShowVideos] = useState<Record<number, VideoItem[]>>({})
-
-  useEffect(() => {
-    window.electronAPI?.isLoggedIn().then(setIsLoggedIn)
-  }, [])
 
   const loadUps = useCallback(async () => {
     try {

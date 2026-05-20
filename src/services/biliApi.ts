@@ -68,7 +68,7 @@ export function getRecommendVideos(freshIdx = 0) {
 export interface RegionVideoItem { aid: number; bvid: string; title: string; pic: string; duration: number; owner: { mid: number; name: string; face: string }; stat: { view: number; danmaku: number }; pubdate: number }
 export interface RegionVideoResponse { code: number; message: string; data: { archives: RegionVideoItem[]; page: { count: number; num: number; size: number } } }
 export const REGION_IDS: Record<string, number> = {
-  '动画': 1, '番剧': 13, '国创': 167, '音乐': 3, '舞蹈': 129, '游戏': 4, '知识': 36, '科技': 188, '运动': 234, '汽车': 223, '生活': 160, '美食': 211, '动物圈': 217, '鬼畜': 119, '时尚': 155, '娱乐': 5, '影视': 181, '纪录片': 177, '电影': 23, '电视剧': 11, '综艺': 159, '原创': 168, '新人': 222, '潮流': 209,
+  '动画': 1, '国创': 167, '音乐': 3, '舞蹈': 129, '游戏': 4, '知识': 36, '科技': 188, '运动': 234, '汽车': 223, '生活': 160, '美食': 211, '动物圈': 217, '鬼畜': 119, '时尚': 155, '娱乐': 5, '影视': 181,  '综艺': 159, '原创': 168, '新人': 222, '潮流': 209,
 }
 export function getRegionVideos(rid: number, page = 1, pageSize = 20) {
   return request<RegionVideoResponse>(`https://api.bilibili.com/x/web-interface/dynamic/region?rid=${rid}&pn=${page}&ps=${pageSize}`, {}, true)
@@ -104,31 +104,41 @@ const upInfoLimiter = {
   }
 }
 
-const RATE_LIMIT_CODES = new Set([-352, -509, -799])
-
 async function getCardInfo(mid: number): Promise<UpInfo | null> {
   if (upInfoCache.has(mid)) return upInfoCache.get(mid)!
 
   await upInfoLimiter.waitForSlot()
 
   try {
-    const relRes = await request<any>(
-      `https://api.bilibili.com/x/relation/stat?vmid=${mid}`,
-      {},
-      true
-    )
+    const data = await window.electronAPI!.getUpInfoViaPage(mid)
 
-    if (relRes?.code === 0 && relRes?.data) {
-      const info: UpInfo = { mid, name: '', face: '', follower: relRes.data.follower ?? 0, video_count: 0, total_play: 0 }
+    if (data?.code === 0) {
+      const card = data.data
+      const info: UpInfo = {
+        mid: card.mid || mid,
+        name: card.name || '',
+        face: card.face || '',
+        follower: card.fans ?? card.follower ?? 0,
+        video_count: card.archive_count ?? 0,
+        total_play: card.archive_view ?? card.total_play_count ?? 0,
+      }
+      if (info.follower === 0 && card.fans === undefined && card.follower === undefined) {
+        // 尝试从 card 对象其他字段获取
+        const stat = card.stat || {}
+        info.follower = stat.follower ?? stat.fans ?? 0
+      }
       upInfoCache.set(mid, info)
       return info
     }
 
-    if (RATE_LIMIT_CODES.has(relRes?.code)) {
-      console.warn(`[getCardInfo] ${mid} 粉丝数接口风控(code=${relRes.code})`)
+    if (data?.code === -352 || data?.code === -509 || data?.code === -799) {
+      console.warn(`[getCardInfo] ${mid} 接口风控(code=${data.code})`)
       upInfoCache.set(mid, null as any)
       setTimeout(() => upInfoCache.delete(mid), 2 * 60 * 1000)
+      return null
     }
+
+    console.warn(`[getCardInfo] ${mid} 接口返回异常(code=${data?.code})`)
     upInfoCache.set(mid, null as any)
     setTimeout(() => upInfoCache.delete(mid), 2 * 60 * 1000)
   } catch (e) {

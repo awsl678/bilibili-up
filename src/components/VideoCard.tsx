@@ -91,20 +91,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
           )}
         </button>
       </div>
-      <div className="card-bottom">
+      <div className="card-bottom" style={{ cursor: 'pointer' }} onClick={() => openTab(`https://www.bilibili.com/video/${video.bvid}`)}>
         <div
           className="card-cover"
-          style={{ backgroundImage: `url(${video.pic})`, cursor: 'pointer' }}
-          onClick={() => openTab(`https://www.bilibili.com/video/${video.bvid}`)}
+          style={{ backgroundImage: `url(${video.pic})` }}
         >
           <span className="video-duration">{duration}</span>
         </div>
         <div className="card-info">
-          <div
-            className="video-title"
-            style={{ cursor: 'pointer' }}
-            onClick={() => openTab(`https://www.bilibili.com/video/${video.bvid}`)}
-          >
+          <div className="video-title">
             {video.title}
           </div>
           <div className="video-meta">

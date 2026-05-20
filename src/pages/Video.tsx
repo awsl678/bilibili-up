@@ -33,14 +33,25 @@ const Video: React.FC<VideoProps> = ({ region }) => {
 
   const [sortMetric, setSortMetric] = useState<string>('none')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [sortKey, setSortKey] = useState(0)
+  const sortedIdsRef = useRef<Set<number>>(new Set())
+  const needsResortRef = useRef(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // 重置
-  useEffect(() => {
+  const handleRefresh = () => {
+    if (loading) return
     setVideos([])
     setPage(1)
     setHasMore(true)
-    setSortMetric('none')
-  }, [region])
+    if (sortMetric !== 'none') needsResortRef.current = true
+    setSortKey(k => k + 1)
+    setRefreshKey(k => k + 1)
+  }
+
+  // 首次加载
+  useEffect(() => {
+    fetchVideos()
+  }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const enrichVideosWithFans = useCallback(async (videoList: VideoWithFan[]) => {
     const updated = await Promise.all(
@@ -81,9 +92,6 @@ const Video: React.FC<VideoProps> = ({ region }) => {
     }
   }, [region, page, loading, hasMore])
 
-  useEffect(() => {
-    fetchVideos()
-  }, [region]) // 切换分区时首次加载
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -106,33 +114,66 @@ const Video: React.FC<VideoProps> = ({ region }) => {
     enrichVideosWithFans(videos)
   }, [videos.length, enrichVideosWithFans])
 
+  useEffect(() => {
+    if (sortMetric !== 'none' && sortKey > 0) {
+      sortedIdsRef.current = new Set(videos.map(v => v.id))
+    } else {
+      sortedIdsRef.current = new Set()
+    }
+  }, [sortKey, sortMetric])
+
+  useEffect(() => {
+    if (needsResortRef.current && !loading && videos.length > 0) {
+      needsResortRef.current = false
+      setSortKey(k => k + 1)
+    }
+  }, [loading, videos.length])
+
   const sortedVideos = useMemo(() => {
     if (sortMetric === 'none') return videos
-    const sorted = [...videos]
+    const snapshot = sortedIdsRef.current
+    if (snapshot.size === 0) return videos
+
+    const known: VideoWithFan[] = []
+    const unknown: VideoWithFan[] = []
+    for (const v of videos) {
+      if (snapshot.has(v.id)) known.push(v)
+      else unknown.push(v)
+    }
+
     const multiplier = sortOrder === 'asc' ? 1 : -1
     if (sortMetric === 'play') {
-      sorted.sort((a, b) => ((a.stat?.view || 0) - (b.stat?.view || 0)) * multiplier)
+      known.sort((a, b) => ((a.stat?.view || 0) - (b.stat?.view || 0)) * multiplier)
     } else if (sortMetric === 'danmaku') {
-      sorted.sort((a, b) => ((a.stat?.danmaku || 0) - (b.stat?.danmaku || 0)) * multiplier)
+      known.sort((a, b) => ((a.stat?.danmaku || 0) - (b.stat?.danmaku || 0)) * multiplier)
     } else if (sortMetric === 'fan') {
-      sorted.sort((a, b) => {
+      known.sort((a, b) => {
         const af = a.fanCount ?? -1
         const bf = b.fanCount ?? -1
         return (af - bf) * multiplier
       })
     }
-    return sorted
-  }, [videos, sortMetric, sortOrder])
+    return [...known, ...unknown]
+  }, [videos, sortMetric, sortOrder, sortKey])
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h2 style={{ fontSize: 18, margin: 0 }}>{region}</h2>
-        {videos.length > 0 && (
+        {(videos.length > 0 || hasMore) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              title="刷新"
+              style={{
+                padding: '2px 10px', borderRadius: 4, border: '1px solid #ddd',
+                background: '#fff', color: loading ? '#ccc' : '#666', cursor: loading ? 'default' : 'pointer', fontSize: 13,
+              }}
+            >↻</button>
             <select
               value={sortMetric}
-              onChange={(e) => setSortMetric(e.target.value)}
+              onChange={(e) => { setSortMetric(e.target.value); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 fontSize: 13, background: '#fff', color: '#333', cursor: 'pointer',
@@ -144,7 +185,7 @@ const Video: React.FC<VideoProps> = ({ region }) => {
               <option value="fan">按粉丝数</option>
             </select>
             <button
-              onClick={() => setSortOrder('asc')}
+              onClick={() => { setSortOrder('asc'); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 background: sortOrder === 'asc' ? '#fce4ec' : '#fff',
@@ -152,7 +193,7 @@ const Video: React.FC<VideoProps> = ({ region }) => {
               }}
             >↑</button>
             <button
-              onClick={() => setSortOrder('desc')}
+              onClick={() => { setSortOrder('desc'); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 background: sortOrder === 'desc' ? '#fce4ec' : '#fff',

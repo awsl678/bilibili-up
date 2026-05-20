@@ -26,4 +26,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUpVideos: (mid: number) => ipcRenderer.invoke('get-up-videos', mid),
   getDynamicsByDate: (mids: number[], startTs: number, endTs: number) =>
     ipcRenderer.invoke('get-dynamics-by-date', mids, startTs, endTs),
+  getUpInfoViaPage: (mid: number) => ipcRenderer.invoke('get-up-info-via-page', mid),
 })

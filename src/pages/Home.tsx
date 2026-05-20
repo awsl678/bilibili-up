@@ -16,6 +16,20 @@ const Home: React.FC = () => {
   // 排序状态
   const [sortMetric, setSortMetric] = useState<string>('none') // none, play, danmaku, fan
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [sortKey, setSortKey] = useState(0)         // 递增触发重排
+  const sortedIdsRef = useRef<Set<number>>(new Set())
+  const needsResortRef = useRef(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const handleRefresh = () => {
+    if (loading) return
+    setVideos([])
+    setFreshIdx(0)
+    setHasMore(true)
+    if (sortMetric !== 'none') needsResortRef.current = true
+    setSortKey(k => k + 1) // 重置 sortedIdsRef
+    setRefreshKey(k => k + 1)
+  }
 
   // 获取粉丝数补充
   const enrichVideosWithFans = useCallback(async (videoList: VideoWithFan[]) => {
@@ -57,10 +71,10 @@ const Home: React.FC = () => {
     }
   }, [freshIdx, loading, hasMore])
 
-  // 首次加载
+  // 首次加载 & 刷新
   useEffect(() => {
     fetchVideos()
-  }, [])
+  }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 无限滚动
   useEffect(() => {
@@ -85,24 +99,49 @@ const Home: React.FC = () => {
     enrichVideosWithFans(videos)
   }, [videos.length, enrichVideosWithFans])
 
-  // 排序后的视频
+  // 仅当 sortKey / sortMetric 变化时才更新快照；新数据自动归为"未排序"追加到末尾
+  useEffect(() => {
+    if (sortMetric !== 'none' && sortKey > 0) {
+      sortedIdsRef.current = new Set(videos.map(v => v.id))
+    } else {
+      sortedIdsRef.current = new Set()
+    }
+  }, [sortKey, sortMetric])
+
+  // 刷新后数据加载完毕 → 执行排序
+  useEffect(() => {
+    if (needsResortRef.current && !loading && videos.length > 0) {
+      needsResortRef.current = false
+      setSortKey(k => k + 1)
+    }
+  }, [loading, videos.length])
+
   const sortedVideos = useMemo(() => {
     if (sortMetric === 'none') return videos
-    const sorted = [...videos]
+    const snapshot = sortedIdsRef.current
+    if (snapshot.size === 0) return videos
+
+    const known: VideoWithFan[] = []
+    const unknown: VideoWithFan[] = []
+    for (const v of videos) {
+      if (snapshot.has(v.id)) known.push(v)
+      else unknown.push(v)
+    }
+
     const multiplier = sortOrder === 'asc' ? 1 : -1
     if (sortMetric === 'play') {
-      sorted.sort((a, b) => ((a.stat?.view || 0) - (b.stat?.view || 0)) * multiplier)
+      known.sort((a, b) => ((a.stat?.view || 0) - (b.stat?.view || 0)) * multiplier)
     } else if (sortMetric === 'danmaku') {
-      sorted.sort((a, b) => ((a.stat?.danmaku || 0) - (b.stat?.danmaku || 0)) * multiplier)
+      known.sort((a, b) => ((a.stat?.danmaku || 0) - (b.stat?.danmaku || 0)) * multiplier)
     } else if (sortMetric === 'fan') {
-      sorted.sort((a, b) => {
+      known.sort((a, b) => {
         const af = a.fanCount ?? -1
         const bf = b.fanCount ?? -1
         return (af - bf) * multiplier
       })
     }
-    return sorted
-  }, [videos, sortMetric, sortOrder])
+    return [...known, ...unknown]
+  }, [videos, sortMetric, sortOrder, sortKey])
 
   return (
     <div>
@@ -110,9 +149,18 @@ const Home: React.FC = () => {
         <h2 style={{ fontSize: 18, margin: 0 }}>推荐</h2>
         {videos.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              title="刷新"
+              style={{
+                padding: '2px 10px', borderRadius: 4, border: '1px solid #ddd',
+                background: '#fff', color: loading ? '#ccc' : '#666', cursor: loading ? 'default' : 'pointer', fontSize: 13,
+              }}
+            >↻</button>
             <select
               value={sortMetric}
-              onChange={(e) => setSortMetric(e.target.value)}
+              onChange={(e) => { setSortMetric(e.target.value); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 fontSize: 13, background: '#fff', color: '#333', cursor: 'pointer',
@@ -124,7 +172,7 @@ const Home: React.FC = () => {
               <option value="fan">按粉丝数</option>
             </select>
             <button
-              onClick={() => setSortOrder('asc')}
+              onClick={() => { setSortOrder('asc'); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 background: sortOrder === 'asc' ? '#fce4ec' : '#fff',
@@ -132,7 +180,7 @@ const Home: React.FC = () => {
               }}
             >↑</button>
             <button
-              onClick={() => setSortOrder('desc')}
+              onClick={() => { setSortOrder('desc'); setSortKey(k => k + 1) }}
               style={{
                 padding: '2px 8px', borderRadius: 4, border: '1px solid #ddd',
                 background: sortOrder === 'desc' ? '#fce4ec' : '#fff',

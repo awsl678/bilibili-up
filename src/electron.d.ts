@@ -20,5 +20,6 @@ export interface IElectronAPI {
   getMarkedUpsWithStats: () => Promise<any[]>
   getUpVideos: (mid: number) => Promise<any[]>
   getDynamicsByDate: (mids: number[], startTs: number, endTs: number) => Promise<any[]>
+  getUpInfoViaPage: (mid: number) => Promise<any>
 }
 declare global { interface Window { electronAPI?: IElectronAPI } }

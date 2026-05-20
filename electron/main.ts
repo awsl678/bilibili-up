@@ -2,7 +2,8 @@ import { app, BrowserWindow, shell, ipcMain, session, net } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import axios from 'axios'
-import https from 'https'                    // ✅ 注意拼写
+import https from 'https'
+import md5 from 'blueimp-md5'
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
 const isDev = !app.isPackaged
 let db: SqlJsDatabase
@@ -607,6 +608,128 @@ ipcMain.handle('get-dynamics-by-date', async (_event, mids: number[], startTs: n
   while (stmt.step()) rows.push(stmt.getAsObject())
   stmt.free()
   return rows
+})
+
+// ---------- WBI 签名（主进程，同一套网络栈） ----------
+const mixinKeyEncTab = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
+
+interface WbiKeys { img_key: string; sub_key: string }
+let cachedWbiKeys: WbiKeys | null = null
+let wbiKeysFetchTime = 0
+
+function getWbiKeys(): Promise<WbiKeys> {
+  return new Promise((resolve, reject) => {
+    const now = Date.now()
+    if (cachedWbiKeys && now - wbiKeysFetchTime < 10 * 60 * 1000) {
+      resolve(cachedWbiKeys)
+      return
+    }
+    const req = net.request({ method: 'GET', url: 'https://api.bilibili.com/x/web-interface/nav' })
+    req.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    req.setHeader('Referer', 'https://www.bilibili.com/')
+    req.on('response', (res) => {
+      let body = ''
+      res.on('data', chunk => body += chunk)
+      res.on('end', () => {
+        try {
+          const wbi = JSON.parse(body).data?.wbi_img
+          if (!wbi) { reject(new Error('no wbi_img')); return }
+          cachedWbiKeys = {
+            img_key: wbi.img_url.substring(wbi.img_url.lastIndexOf('/') + 1).split('.')[0],
+            sub_key: wbi.sub_url.substring(wbi.sub_url.lastIndexOf('/') + 1).split('.')[0]
+          }
+          wbiKeysFetchTime = now
+          resolve(cachedWbiKeys)
+        } catch(e) { reject(e) }
+      })
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+async function signWbiUrl(baseUrl: string, params: Record<string, any>): Promise<string> {
+  const { img_key, sub_key } = await getWbiKeys()
+  const mixin_key = mixinKeyEncTab.map(i => (img_key + sub_key)[i]).join('').slice(0, 32)
+  const signed: Record<string, any> = { ...params, wts: Math.floor(Date.now() / 1000) }
+  const qs = Object.keys(signed).sort().map(k => `${k}=${encodeURIComponent(signed[k])}`).join('&')
+  const w_rid = md5(qs + mixin_key)
+  return `${baseUrl}?${qs}&w_rid=${w_rid}`
+}
+
+// ---------- 隐藏浏览器（只加载一次 B 站页面作为上下文，后续请求不再导航） ----------
+let browserWin: BrowserWindow | null = null
+let browserReady = false
+const pendingBrowser: Array<() => void> = []
+
+async function ensureBrowserReady(): Promise<BrowserWindow> {
+  if (browserWin && !browserWin.isDestroyed() && browserReady) return browserWin
+
+  if (browserWin && !browserWin.isDestroyed() && !browserReady) {
+    return new Promise<BrowserWindow>(resolve => {
+      pendingBrowser.push(() => resolve(browserWin!))
+    })
+  }
+
+  browserWin = new BrowserWindow({
+    width: 800, height: 600, show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true }
+  })
+
+  return new Promise<BrowserWindow>((resolve) => {
+    browserWin!.webContents.once('did-finish-load', () => {
+      browserReady = true
+      resolve(browserWin!)
+      pendingBrowser.forEach(fn => fn())
+      pendingBrowser.length = 0
+    })
+    browserWin!.loadURL('https://space.bilibili.com/1')
+  })
+}
+
+let browserBusy = false
+const browserQueue: Array<() => void> = []
+
+function acquireBrowserLock(): Promise<void> {
+  return new Promise(resolve => {
+    if (!browserBusy) { browserBusy = true; resolve() }
+    else browserQueue.push(resolve)
+  })
+}
+
+function releaseBrowserLock() {
+  const next = browserQueue.shift()
+  if (next) next()
+  else browserBusy = false
+}
+
+ipcMain.handle('get-up-info-via-page', async (_event, mid: number) => {
+  await acquireBrowserLock()
+  try {
+    const win = await ensureBrowserReady()
+    // 主进程签名 relation/stat URL（最轻量的粉丝数接口）
+    const signedUrl = await signWbiUrl(
+      'https://api.bilibili.com/x/relation/stat',
+      { vmid: String(mid) }
+    )
+    // 从已加载的 B 站页面上下文中 fetch API（带完整浏览器指纹）
+    const result = await win.webContents.executeJavaScript(`
+      (async () => {
+        try {
+          const res = await fetch(${JSON.stringify(signedUrl)}, {
+            credentials: 'include',
+            headers: { Referer: 'https://space.bilibili.com/${mid}' }
+          })
+          return res.json()
+        } catch(e) { return { code: -1, message: e.message } }
+      })()
+    `)
+    return result
+  } catch(e: any) {
+    return { code: -1, message: e.message }
+  } finally {
+    releaseBrowserLock()
+  }
 })
 
 // ---------- 启动 ----------

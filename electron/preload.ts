@@ -31,4 +31,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('fetch-via-browser', baseUrl, params, referer),
   fetchSignedApi: (baseUrl: string, params: Record<string, any>, referer: string) =>
     ipcRenderer.invoke('fetch-signed-api', baseUrl, params, referer),
+  fetchPlainApi: (url: string, referer: string) =>
+    ipcRenderer.invoke('fetch-plain-api', url, referer),
 })

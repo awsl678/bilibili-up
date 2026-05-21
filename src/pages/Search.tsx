@@ -55,6 +55,15 @@ const Search: React.FC<SearchProps> = ({ keyword, onClose }) => {
   // 整合排序状态
   const [sortMetric, setSortMetric] = useState<string>('play')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [markedMids, setMarkedMids] = useState<Set<number>>(new Set())
+
+  const refreshMarkedMids = useCallback(() => {
+    window.electronAPI?.dbGetMarkedUps().then((list: any[]) => {
+      if (Array.isArray(list)) setMarkedMids(new Set(list.map(u => u.mid)))
+    })
+  }, [])
+
+  useEffect(() => { refreshMarkedMids() }, [refreshMarkedMids])
 
   const videoSortOptions = [
     { value: 'play', label: '按播放量' },
@@ -79,14 +88,19 @@ const Search: React.FC<SearchProps> = ({ keyword, onClose }) => {
 
   // 为视频批量补充粉丝数（利用 getUpInfo 缓存）
   const enrichVideosWithFans = useCallback(async (videoList: VideoWithFan[]) => {
-    const updated = await Promise.all(
-      videoList.map(async (v) => {
-        if (v.fanCount !== undefined) return v
+    const toEnrich = videoList.filter(v => v.fanCount === undefined)
+    if (toEnrich.length === 0) return
+    const enriched = await Promise.all(
+      toEnrich.map(async (v) => {
         const info = await getUpInfo(v.owner.mid)
-        return { ...v, fanCount: info?.follower ?? 0 }
+        return { id: v.id, fanCount: info?.follower ?? 0 }
       })
     )
-    setVideos(updated)
+    const enrichMap = new Map(enriched.map(e => [e.id, e.fanCount]))
+    setVideos(prev => prev.map(v => {
+      const fc = enrichMap.get(v.id)
+      return fc !== undefined ? { ...v, fanCount: fc } : v
+    }))
   }, [])
 
   // ---------- 视频首次加载 ----------
@@ -288,7 +302,7 @@ const Search: React.FC<SearchProps> = ({ keyword, onClose }) => {
       {/* 视频列表 */}
       {tab === 'video' && (
         <div className="video-grid">
-          {sortedVideos.map(video => (<VideoCard key={video.id} video={video} />))}
+          {sortedVideos.map(video => (<VideoCard key={video.id} video={video} markedMids={markedMids} onCollectChange={refreshMarkedMids} />))}
         </div>
       )}
 

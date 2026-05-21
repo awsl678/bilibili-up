@@ -14,9 +14,9 @@ const TabView: React.FC = () => {
   const [activeView, setActiveView] = useState<'home' | { region: string }>('home')
   const [visitedRegions, setVisitedRegions] = useState<string[]>([]) // 访问过的分区（每个保留独立缓存）
   const [searchText, setSearchText] = useState('')
-  const [showMarked, setShowMarked] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [showMarkedUps, setShowMarkedUps] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -84,18 +84,21 @@ const TabView: React.FC = () => {
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', marginRight: '4px', WebkitAppRegion: 'no-drag' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px', WebkitAppRegion: 'no-drag' }}>
+          <button
+            onClick={() => { setActiveTab('home'); setShowMarkedUps(v => !v) }}
+            title="查看已收藏UP主"
+            style={{
+              background: showMarkedUps ? '#fce4ec' : 'none',
+              border: '1px solid #ddd', borderRadius: '4px', padding: '0 8px',
+              fontSize: '12px', cursor: 'pointer', color: showMarkedUps ? '#fb7299' : '#666', height: '24px',
+            }}
+          >★ 收藏</button>
           {isLoggedIn ? (
             <button onClick={handleLogout} style={{ background: 'none', border: '1px solid #ddd', borderRadius: '4px', padding: '0 8px', fontSize: '12px', cursor: 'pointer', color: '#666', height: '24px' }}>已登录</button>
           ) : (
             <button onClick={() => setShowLogin(true)} style={{ background: '#fb7299', border: 'none', borderRadius: '4px', padding: '0 8px', fontSize: '12px', cursor: 'pointer', color: 'white', height: '24px' }}>登录</button>
           )}
-          <button
-            onClick={() => setShowMarked(!showMarked)}
-            style={{ background: 'none', border: '1px solid #ddd', borderRadius: '4px', padding: '0 8px', fontSize: '12px', cursor: 'pointer', color: '#666', height: '24px', marginLeft: 4 }}
-          >
-            {showMarked ? '返回浏览' : '收藏'}
-          </button>
         </div>
         <div style={{ display: 'flex', height: '100%', marginLeft: '4px', WebkitAppRegion: 'no-drag' }}>
           {/* 窗口控制按钮 */}
@@ -114,43 +117,46 @@ const TabView: React.FC = () => {
       {/* 内容区 */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {/* 主页标签：侧栏+内容 —— 始终挂载，CSS 显隐 */}
-        <div style={{ display: isHomeActive && !showMarked ? 'flex' : 'none', height: '100%', width: '100%' }}>
-          <div id="sidebar" style={{
-            width: '200px', borderRight: '1px solid #eee', background: '#fafafa', height: '100%',
-            overflowY: 'auto', WebkitAppRegion: 'no-drag',
-          }}>
-            <div style={{ padding: '12px' }}>
-              <div style={{ display: 'flex', background: 'white', borderRadius: '4px', border: '1px solid #ddd' }}>
-                <input
-                  type="text" placeholder="搜索..." value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  style={{ border: 'none', outline: 'none', flex: 1, padding: '6px 8px', fontSize: '13px', borderRadius: '4px 0 0 4px' }}
-                />
-                <button onClick={handleSearch} style={{ background: 'none', border: 'none', padding: '6px 10px', cursor: 'pointer', color: '#fb7299' }}>🔍</button>
-              </div>
+        <div style={{ display: isHomeActive ? 'flex' : 'none', height: '100%', width: '100%' }}>
+          {showMarkedUps ? (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', WebkitAppRegion: 'no-drag' }}>
+              <MarkedUps isLoggedIn={isLoggedIn} />
             </div>
-            <ul className="nav-list" style={{ listStyle: 'none', padding: 0 }}>
-              <li className={`nav-item ${activeView === 'home' ? 'active' : ''}`} onClick={() => setActiveView('home')} style={{ padding: '10px 20px', cursor: 'pointer' }}>推荐</li>
-              <li style={{ padding: '6px 20px', fontSize: '12px', color: '#999', marginTop: '8px' }}>分区</li>
-              {regionNames.map(region => (
-                <li key={region} className={`nav-item ${typeof activeView !== 'string' && activeView.region === region ? 'active' : ''}`} onClick={() => { setActiveView({ region }); setVisitedRegions(prev => prev.includes(region) ? prev : [...prev, region]) }} style={{ padding: '8px 20px 8px 30px', cursor: 'pointer', fontSize: '14px' }}>{region}</li>
-              ))}
-            </ul>
-          </div>
-          <div id="content-area" style={{ flex: 1, overflowY: 'auto', padding: '20px', WebkitAppRegion: 'no-drag' }}>
-            <div style={{ display: activeView === 'home' ? 'block' : 'none' }}><Home key={`home-${reloadKey}`} /></div>
-            {visitedRegions.map(r => (
-              <div key={r} style={{ display: activeView !== 'home' && activeView.region === r ? 'block' : 'none' }}>
-                <Video key={`video-${r}-${reloadKey}`} region={r} />
+          ) : (
+            <>
+              <div id="sidebar" style={{
+                width: '200px', borderRight: '1px solid #eee', background: '#fafafa', height: '100%',
+                overflowY: 'auto', WebkitAppRegion: 'no-drag',
+              }}>
+                <div style={{ padding: '12px' }}>
+                  <div style={{ display: 'flex', background: 'white', borderRadius: '4px', border: '1px solid #ddd' }}>
+                    <input
+                      type="text" placeholder="搜索..." value={searchText}
+                      onChange={e => setSearchText(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                      style={{ border: 'none', outline: 'none', flex: 1, padding: '6px 8px', fontSize: '13px', borderRadius: '4px 0 0 4px' }}
+                    />
+                    <button onClick={handleSearch} style={{ background: 'none', border: 'none', padding: '6px 10px', cursor: 'pointer', color: '#fb7299' }}>🔍</button>
+                  </div>
+                </div>
+                <ul className="nav-list" style={{ listStyle: 'none', padding: 0 }}>
+                  <li className={`nav-item ${activeView === 'home' ? 'active' : ''}`} onClick={() => setActiveView('home')} style={{ padding: '10px 20px', cursor: 'pointer' }}>推荐</li>
+                  <li style={{ padding: '6px 20px', fontSize: '12px', color: '#999', marginTop: '8px' }}>分区</li>
+                  {regionNames.map(region => (
+                    <li key={region} className={`nav-item ${typeof activeView !== 'string' && activeView.region === region ? 'active' : ''}`} onClick={() => { setActiveView({ region }); setVisitedRegions(prev => prev.includes(region) ? prev : [...prev, region]) }} style={{ padding: '8px 20px 8px 30px', cursor: 'pointer', fontSize: '14px' }}>{region}</li>
+                  ))}
+                </ul>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 收藏页 —— 始终挂载，CSS 显隐 */}
-        <div style={{ display: isHomeActive && showMarked ? 'block' : 'none', height: '100%', width: '100%', overflow: 'auto', padding: 20 }}>
-          <MarkedUps isLoggedIn={isLoggedIn} />
+              <div id="content-area" style={{ flex: 1, overflowY: 'auto', padding: '20px', WebkitAppRegion: 'no-drag' }}>
+                <div style={{ display: activeView === 'home' ? 'block' : 'none' }}><Home key={`home-${reloadKey}`} /></div>
+                {visitedRegions.map(r => (
+                  <div key={r} style={{ display: activeView !== 'home' && activeView.region === r ? 'block' : 'none' }}>
+                    <Video key={`video-${r}-${reloadKey}`} region={r} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* 搜索标签 —— 每个始终挂载，CSS 显隐 */}

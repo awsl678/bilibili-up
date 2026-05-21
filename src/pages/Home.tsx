@@ -21,6 +21,19 @@ const Home: React.FC = () => {
   const needsResortRef = useRef(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  const [onlyMarked, setOnlyMarked] = useState(false)
+  const [markedMids, setMarkedMids] = useState<Set<number>>(new Set())
+  const emptyPageRef = useRef(0)
+
+  const refreshMarkedMids = useCallback(() => {
+    window.electronAPI?.dbGetMarkedUps().then((list: any[]) => {
+      if (Array.isArray(list)) setMarkedMids(new Set(list.map(u => u.mid)))
+    })
+  }, [])
+
+  useEffect(() => { refreshMarkedMids() }, [refreshMarkedMids])
+  useEffect(() => { emptyPageRef.current = 0 }, [onlyMarked])
+
   const handleRefresh = () => {
     if (loading) return
     setVideos([])
@@ -33,19 +46,25 @@ const Home: React.FC = () => {
 
   // 获取粉丝数补充
   const enrichVideosWithFans = useCallback(async (videoList: VideoWithFan[]) => {
-    const updated = await Promise.all(
-      videoList.map(async (v) => {
-        if (v.fanCount !== undefined) return v
+    const toEnrich = videoList.filter(v => v.fanCount === undefined)
+    if (toEnrich.length === 0) return
+    const enriched = await Promise.all(
+      toEnrich.map(async (v) => {
         const info = await getUpInfo(v.owner.mid)
-        return { ...v, fanCount: info?.follower ?? 0 }
+        return { id: v.id, fanCount: info?.follower ?? 0 }
       })
     )
-    setVideos(updated)
+    const enrichMap = new Map(enriched.map(e => [e.id, e.fanCount]))
+    setVideos(prev => prev.map(v => {
+      const fc = enrichMap.get(v.id)
+      return fc !== undefined ? { ...v, fanCount: fc } : v
+    }))
   }, [])
 
   // 加载推荐视频
   const fetchVideos = useCallback(async () => {
-    if (loading || !hasMore) return
+    const effectiveHasMore = onlyMarked ? hasMore && emptyPageRef.current < 5 : hasMore
+    if (loading || !effectiveHasMore) return
     setLoading(true)
     try {
       const res = await getRecommendVideos(freshIdx)
@@ -60,9 +79,14 @@ const Home: React.FC = () => {
             return [...prev, ...unique]
           })
           setFreshIdx(prev => prev + newVideos.length)
+          if (onlyMarked) {
+            const hitCount = newVideos.filter(v => markedMids.has(v.owner.mid)).length
+            emptyPageRef.current = hitCount === 0 ? emptyPageRef.current + 1 : 0
+          }
         }
       } else {
         console.error('请求推荐失败', res)
+        if (res.code === -412 || res.code === -352) setHasMore(false)
       }
     } catch (err) {
       console.error('网络错误', err)
@@ -99,14 +123,18 @@ const Home: React.FC = () => {
     enrichVideosWithFans(videos)
   }, [videos.length, enrichVideosWithFans])
 
-  // 仅当 sortKey / sortMetric 变化时才更新快照；新数据自动归为"未排序"追加到末尾
-  useEffect(() => {
+  // 渲染期间同步更新快照（必须在 useMemo 之前，否则读到旧值）
+  const prevSortKeyRef = useRef(sortKey)
+  const prevSortMetricRef = useRef(sortMetric)
+  if (sortKey !== prevSortKeyRef.current || sortMetric !== prevSortMetricRef.current) {
     if (sortMetric !== 'none' && sortKey > 0) {
       sortedIdsRef.current = new Set(videos.map(v => v.id))
     } else {
       sortedIdsRef.current = new Set()
     }
-  }, [sortKey, sortMetric])
+    prevSortKeyRef.current = sortKey
+    prevSortMetricRef.current = sortMetric
+  }
 
   // 刷新后数据加载完毕 → 执行排序
   useEffect(() => {
@@ -116,14 +144,20 @@ const Home: React.FC = () => {
     }
   }, [loading, videos.length])
 
+  // 只看收藏筛选
+  const baseVideos = useMemo(() => {
+    if (!onlyMarked || markedMids.size === 0) return videos
+    return videos.filter(v => markedMids.has(v.owner.mid))
+  }, [videos, onlyMarked, markedMids])
+
   const sortedVideos = useMemo(() => {
-    if (sortMetric === 'none') return videos
+    if (sortMetric === 'none') return baseVideos
     const snapshot = sortedIdsRef.current
-    if (snapshot.size === 0) return videos
+    if (snapshot.size === 0) return baseVideos
 
     const known: VideoWithFan[] = []
     const unknown: VideoWithFan[] = []
-    for (const v of videos) {
+    for (const v of baseVideos) {
       if (snapshot.has(v.id)) known.push(v)
       else unknown.push(v)
     }
@@ -141,7 +175,7 @@ const Home: React.FC = () => {
       })
     }
     return [...known, ...unknown]
-  }, [videos, sortMetric, sortOrder, sortKey])
+  }, [baseVideos, sortMetric, sortOrder, sortKey])
 
   return (
     <div>
@@ -149,6 +183,16 @@ const Home: React.FC = () => {
         <h2 style={{ fontSize: 18, margin: 0 }}>推荐</h2>
         {videos.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setOnlyMarked(!onlyMarked)}
+              title="只看已收藏UP主的视频"
+              style={{
+                padding: '2px 10px', borderRadius: 4, border: '1px solid #ddd',
+                background: onlyMarked ? '#fce4ec' : '#fff',
+                color: onlyMarked ? '#fb7299' : '#666',
+                cursor: 'pointer', fontSize: 12, fontWeight: onlyMarked ? 600 : 400,
+              }}
+            >★ 收藏</button>
             <button
               onClick={handleRefresh}
               disabled={loading}
@@ -193,13 +237,21 @@ const Home: React.FC = () => {
 
       <div className="video-grid">
         {sortedVideos.map(video => (
-          <VideoCard key={video.id} video={video} />
+          <VideoCard key={video.id} video={video} markedMids={markedMids} onCollectChange={refreshMarkedMids} />
         ))}
       </div>
 
       <div ref={loaderRef} style={{ padding: '20px', textAlign: 'center' }}>
         {loading && <div className="loading-indicator">⏳ 正在加载...</div>}
-        {!hasMore && <div className="no-more-indicator">没有更多了</div>}
+        {!loading && !hasMore && baseVideos.length > 0 && (
+          <div className="no-more-indicator">没有更多了</div>
+        )}
+        {!loading && onlyMarked && baseVideos.length === 0 && (
+          <div className="no-more-indicator" style={{ color: '#e67e22' }}>
+            当前推荐流中暂无收藏UP主的视频<br />
+            <span style={{ fontSize: 12, color: '#999' }}>收藏的UP主可能在分区页面中找到</span>
+          </div>
+        )}
       </div>
     </div>
   )

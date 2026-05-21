@@ -747,8 +747,42 @@ ipcMain.handle('fetch-via-browser', async (_event, baseUrl: string, params: Reco
   }
 })
 
+// 签名 + net.request 的请求节流
+let lastApiCall = 0
+const apiMinInterval = 1200
+
+function waitApiSlot(): Promise<void> {
+  const now = Date.now()
+  const wait = apiMinInterval - (now - lastApiCall)
+  lastApiCall = Date.now() + Math.max(0, wait)
+  return wait > 0 ? new Promise(r => setTimeout(r, wait)) : Promise.resolve()
+}
+
+// 无签名 HTTP 请求（不签 WBI，适合不需要签名的端点）
+ipcMain.handle('fetch-plain-api', async (_event, url: string, referer: string) => {
+  await waitApiSlot()
+  return new Promise((resolve) => {
+    const req = net.request({ method: 'GET', url })
+    req.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    req.setHeader('Referer', referer)
+    req.setHeader('Accept', 'application/json, text/plain, */*')
+    req.setHeader('Accept-Language', 'zh-CN,zh;q=0.9')
+    req.on('response', (res) => {
+      let body = ''
+      res.on('data', chunk => body += chunk)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) }
+        catch { resolve({ code: -1, message: 'parse error', raw: body.slice(0, 200) }) }
+      })
+    })
+    req.on('error', (err) => resolve({ code: -1, message: err.message }))
+    req.end()
+  })
+})
+
 // 签名 + net.request（不回浏览器，适合无风控的公开 API）
 ipcMain.handle('fetch-signed-api', async (_event, baseUrl: string, params: Record<string, any>, referer: string) => {
+  await waitApiSlot()
   try {
     const signedUrl = await signWbiUrl(baseUrl, params)
     return new Promise((resolve) => {

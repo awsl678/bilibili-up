@@ -23,5 +23,6 @@ export interface IElectronAPI {
   getUpInfoViaPage: (mid: number) => Promise<any>
   fetchViaBrowser: (baseUrl: string, params: Record<string, any>, referer: string) => Promise<any>
   fetchSignedApi: (baseUrl: string, params: Record<string, any>, referer: string) => Promise<any>
+  fetchPlainApi: (url: string, referer: string) => Promise<any>
 }
 declare global { interface Window { electronAPI?: IElectronAPI } }

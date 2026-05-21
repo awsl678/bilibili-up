@@ -17,13 +17,9 @@ export const REGION_IDS: Record<string, number> = {
   '动画': 1, '国创': 167, '音乐': 3, '舞蹈': 129, '游戏': 4, '知识': 36, '科技': 188, '运动': 234, '汽车': 223, '生活': 160, '美食': 211, '动物圈': 217, '鬼畜': 119, '时尚': 155, '娱乐': 5, '影视': 181,  '综艺': 159, '原创': 168, '新人': 222, '潮流': 209,
 }
 
-const REGION_BASE = 'https://api.bilibili.com/x/web-interface/dynamic/region'
-
 export function getRegionVideos(rid: number, page = 1, pageSize = 20) {
-  return window.electronAPI!.fetchSignedApi(REGION_BASE,
-    { rid: String(rid), pn: String(page), ps: String(pageSize) },
-    'https://www.bilibili.com/'
-  ) as Promise<RegionVideoResponse>
+  const url = `https://api.bilibili.com/x/web-interface/dynamic/region?rid=${rid}&pn=${page}&ps=${pageSize}`
+  return window.electronAPI!.fetchPlainApi(url, 'https://www.bilibili.com/') as Promise<RegionVideoResponse>
 }
 
 // ---------- 搜索（浏览器代理 fetch） ----------

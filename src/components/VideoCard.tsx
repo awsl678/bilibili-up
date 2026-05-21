@@ -5,21 +5,15 @@ import { useTabs } from '../contexts/TabContext'
 
 interface VideoCardProps {
   video: VideoItem
+  markedMids?: Set<number>
+  onCollectChange?: () => void
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, markedMids, onCollectChange }) => {
   const { openTab } = useTabs()
   const [upInfo, setUpInfo] = useState<UpInfo | null>(null)
-  const [isMarked, setIsMarked] = useState(false)
 
-  // 检查是否已标记
-  useEffect(() => {
-    window.electronAPI?.dbGetMarkedUps().then((list: any[]) => {
-      if (Array.isArray(list)) {
-        setIsMarked(list.some((u: any) => u.mid === video.owner.mid))
-      }
-    })
-  }, [video.owner.mid])
+  const isMarked = markedMids ? markedMids.has(video.owner.mid) : false
 
   useEffect(() => {
   const mid = video.owner?.mid
@@ -35,15 +29,14 @@ const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     e.stopPropagation()
     if (isMarked) {
       await window.electronAPI?.dbUnmarkUp(video.owner.mid)
-      setIsMarked(false)
     } else {
       await window.electronAPI?.dbMarkUp({
         mid: video.owner.mid,
         name: video.owner.name,
         face: video.owner.face,
       })
-      setIsMarked(true)
     }
+    onCollectChange?.()
   }
 
   return (
